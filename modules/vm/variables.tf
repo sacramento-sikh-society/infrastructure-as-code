@@ -55,30 +55,30 @@ variable "machine_name" {
 }
 
 variable "vm_os" {
-    type = object({
-        publisher = string
-        offer     = string
-        sku       = string
-        version   = string
-    })
-    description = "Operating system details for the VM"
-    default = {
-        publisher = "debian"
-        offer     = "debian-13"
-        sku       = "13-gen2"
-        version   = "latest"
-    }
+  type = object({
+    publisher = string
+    offer     = string
+    sku       = string
+    version   = string
+  })
+  description = "Operating system details for the VM"
+  default = {
+    publisher = "debian"
+    offer     = "debian-13"
+    sku       = "13-gen2"
+    version   = "latest"
+  }
 
-    validation {
-        condition = contains([
-            # AlmaLinux
-            jsonencode({ publisher = "almalinux", offer = "almalinux-x86_64", sku = "9-gen2", version = "latest" }),
-            # Ubuntu
-            jsonencode({ publisher = "Canonical", offer = "ubuntu-24_04-lts", sku = "server", version = "latest" }),
-            jsonencode({ publisher = "Canonical", offer = "ubuntu-24_04-lts", sku = "minimal", version = "latest" }),
-            # Debian
-            jsonencode({ publisher = "debian", offer = "debian-13", sku = "13-gen2", version = "latest" })
-        ], jsonencode(var.vm_os))
-        error_message = "The vm_os must be one of the allowed OS configurations"
-    }
+  validation {
+    condition = contains([
+      # AlmaLinux
+      jsonencode({ publisher = "almalinux", offer = "almalinux-x86_64", sku = "9-gen2", version = "latest" }),
+      # Ubuntu
+      jsonencode({ publisher = "Canonical", offer = "ubuntu-24_04-lts", sku = "server", version = "latest" }),
+      jsonencode({ publisher = "Canonical", offer = "ubuntu-24_04-lts", sku = "minimal", version = "latest" }),
+      # Debian
+      jsonencode({ publisher = "debian", offer = "debian-13", sku = "13-gen2", version = "latest" })
+    ], jsonencode(var.vm_os))
+    error_message = "The vm_os must be one of the allowed OS configurations"
+  }
 }

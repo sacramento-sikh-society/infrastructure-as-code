@@ -96,17 +96,12 @@ output "vm_ids" {
   value       = azurerm_linux_virtual_machine.main[*].id
 }
 
-output "vm_private_ip" {
-  description = "Private IP address of the VM"
-  value       = azurerm_network_interface.main.private_ip_address
+output "vm_private_ips" {
+  description = "Private IP addresses of the VMs"
+  value       = azurerm_network_interface.main[*].private_ip_address
 }
 
-output "vm_id" {
-  description = "ID of the VM"
-  value       = azurerm_linux_virtual_machine.main.id
-}
-
-output "ssh_command" {
-  description = "SSH command to connect to the VM"
-  value       = "ssh ${var.admin_username}@${azurerm_public_ip.main.ip_address}"
+output "ssh_commands" {
+  description = "SSH commands to connect to the VMs"
+  value       = [for ip in azurerm_public_ip.main[*].ip_address : "ssh ${var.admin_username}@${ip}"]
 }
