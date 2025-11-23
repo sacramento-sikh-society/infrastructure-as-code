@@ -2,7 +2,7 @@
 
 ### Prerequisites
 1. An Azure Subscription.
-1. Create a Custom Role for this subscription `ALZ Contributor` with the following privileges scoped to your root management group. Create one if one doesn't exist. You cannot do this a `Tenant Root Group`
+1. Create a Custom Role for this subscription `ALZ Contributor` with the following privileges scoped to your root management group. Create one if one doesn't exist. You cannot do this at a `Tenant Root Group`
     ```json
     "permissions": [
             {
