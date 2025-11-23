@@ -24,7 +24,7 @@ resource "azurerm_subnet" "main" {
 resource "azurerm_network_security_group" "main" {
   name                = "nsg-main-${var.location}-01"
   location            = var.location
-  resource_group_name = "rg-vnet-main-${var.location}-01"
+  resource_group_name = azurerm_virtual_network.main.name
 }
 
 # Associate NSG with Subnet
