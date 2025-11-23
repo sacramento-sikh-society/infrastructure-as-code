@@ -21,7 +21,7 @@ locals {
 
 module "vm" {
   source              = "./modules/vm"
-  vm_count            = 2
+  vm_count            = 1
   machine_name        = "AVPDEB"
   vm_size             = "Standard_D2s_v6"
   admin_username      = var.admin_username
