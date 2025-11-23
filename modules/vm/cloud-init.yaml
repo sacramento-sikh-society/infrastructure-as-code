@@ -1,0 +1,118 @@
+#cloud-config
+
+# Install Docker and mount data disk
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - ca-certificates
+  - gnupg
+  - lsblk
+  - parted
+
+runcmd:
+  # Detect OS and install container runtime
+  - |
+    if [ -f /etc/os-release ]; then
+      . /etc/os-release
+      OS=$ID
+      
+      case "$OS" in
+        debian|ubuntu)
+          # Install Docker on Debian/Ubuntu
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/$OS/gpg -o /etc/apt/keyrings/docker.asc
+          chmod a+r /etc/apt/keyrings/docker.asc
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$OS $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+          apt-get update
+          apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          systemctl enable docker
+          systemctl start docker
+          ;;
+        almalinux|rocky|rhel|centos)
+          # Install Podman on RHEL-based systems
+          yum install -y podman podman-compose
+          systemctl enable podman.socket
+          systemctl start podman.socket
+          # Create docker alias for all users
+          echo "alias docker='podman'" >> /etc/profile.d/podman-alias.sh
+          echo "alias docker-compose='podman-compose'" >> /etc/profile.d/podman-alias.sh
+          chmod +x /etc/profile.d/podman-alias.sh
+          ;;
+      esac
+    fi
+  
+  # Find and prepare the data disk (LUN 0)
+  - |
+    MOUNT_POINT="${mount_point}"
+    DATA_DISK=$(lsblk -ndo NAME,TYPE | grep disk | awk 'NR==2 {print "/dev/"$1}')
+    if [ -n "$DATA_DISK" ]; then
+      # Create partition if it doesn't exist
+      if ! lsblk -no FSTYPE $DATA_DISK | grep -q ext4; then
+        parted -s $DATA_DISK mklabel gpt
+        parted -s $DATA_DISK mkpart primary ext4 0% 100%
+        sleep 2
+        PARTITION="$${DATA_DISK}1"
+        mkfs.ext4 -F $PARTITION
+      else
+        PARTITION=$DATA_DISK
+      fi
+      
+      # Create mount point
+      mkdir -p $MOUNT_POINT
+      
+      # Get UUID
+      UUID=$(blkid -s UUID -o value $PARTITION)
+      
+      # Add to fstab if not already present
+      if ! grep -q "$UUID" /etc/fstab; then
+        echo "UUID=$UUID $MOUNT_POINT ext4 defaults,nofail 0 2" >> /etc/fstab
+      fi
+      
+      # Mount the disk
+      mount -a
+      
+      # Set permissions
+      chmod 755 $MOUNT_POINT
+      
+      # Create directory for container volumes
+      mkdir -p $MOUNT_POINT/docker-volumes
+      chmod 755 $MOUNT_POINT/docker-volumes
+    fi
+  
+  # Configure Docker/Podman to use data disk for volumes
+  - |
+    MOUNT_POINT="${mount_point}"
+    if [ -f /etc/os-release ]; then
+      . /etc/os-release
+      OS=$ID
+      
+      case "$OS" in
+        debian|ubuntu)
+          # Configure Docker daemon to use data disk
+          mkdir -p /etc/docker
+          cat > /etc/docker/daemon.json <<EOF
+{
+  "data-root": "$MOUNT_POINT/docker-volumes"
+}
+EOF
+          # Restart Docker to apply changes
+          if systemctl is-active --quiet docker; then
+            systemctl restart docker
+          fi
+          ;;
+        almalinux|rocky|rhel|centos)
+          # Configure Podman to use data disk for volumes
+          mkdir -p /etc/containers
+          # Set graphroot (where images/containers are stored)
+          sed -i "s|^#graphroot.*|graphroot = \"$MOUNT_POINT/docker-volumes/storage\"|g" /etc/containers/storage.conf || \
+          echo "graphroot = \"$MOUNT_POINT/docker-volumes/storage\"" >> /etc/containers/storage.conf
+          # Set volume path
+          sed -i "s|^#volume_path.*|volume_path = \"$MOUNT_POINT/docker-volumes/volumes\"|g" /etc/containers/storage.conf || \
+          echo "volume_path = \"$MOUNT_POINT/docker-volumes/volumes\"" >> /etc/containers/storage.conf
+          ;;
+      esac
+    fi
+
+final_message: "Cloud-init complete. Container runtime installed (Docker for Debian/Ubuntu, Podman for RHEL-based) and data disk mounted at ${mount_point}"
