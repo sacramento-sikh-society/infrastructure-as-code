@@ -33,4 +33,4 @@ terraform.rc
 *.tfplan
 
 # Ignore lock file (comment out if you want to version it)
-# .terraform.lock.hcl
+.terraform.lock.hcl

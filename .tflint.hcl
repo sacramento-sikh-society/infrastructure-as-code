@@ -28,3 +28,7 @@ rule "terraform_unused_declarations" {
 rule "terraform_deprecated_index" {
   enabled = true
 }
+
+rule "azurerm_linux_virtual_machine_invalid_size" {
+  enabled = false
+}

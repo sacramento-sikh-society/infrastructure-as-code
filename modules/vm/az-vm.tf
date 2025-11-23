@@ -1,6 +1,6 @@
 # Public IP
 resource "azurerm_public_ip" "main" {
-  count               = var.count
+  count               = var.vm_count
   name                = "pip-${var.machine_name}${count.index + 1}"
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -10,7 +10,7 @@ resource "azurerm_public_ip" "main" {
 
 # Network Interface
 resource "azurerm_network_interface" "main" {
-  count               = var.count
+  count               = var.vm_count
   name                = "nic-${var.machine_name}${count.index + 1}"
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -25,7 +25,7 @@ resource "azurerm_network_interface" "main" {
 
 # Virtual Machine
 resource "azurerm_linux_virtual_machine" "main" {
-  count               = var.count
+  count               = var.vm_count
   name                = "${var.machine_name}${count.index + 1}"
   resource_group_name = var.resource_group_name
   location            = var.location
@@ -67,7 +67,7 @@ resource "azurerm_linux_virtual_machine" "main" {
 
 # Premium Managed Data Disk
 resource "azurerm_managed_disk" "data" {
-  count                = var.count
+  count                = var.vm_count
   name                 = "datadisk-${var.machine_name}${count.index + 1}-${var.vm_disk_size}gb"
   location             = var.location
   resource_group_name  = var.resource_group_name
@@ -78,7 +78,7 @@ resource "azurerm_managed_disk" "data" {
 
 # Attach Data Disk to VM
 resource "azurerm_virtual_machine_data_disk_attachment" "data" {
-  count              = var.count
+  count              = var.vm_count
   managed_disk_id    = azurerm_managed_disk.data[count.index].id
   virtual_machine_id = azurerm_linux_virtual_machine.main[count.index].id
   lun                = 0
