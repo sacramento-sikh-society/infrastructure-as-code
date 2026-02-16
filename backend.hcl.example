@@ -1,0 +1,11 @@
+# Backend configuration for Terraform state storage in Azure
+# Copy this file to backend.hcl and fill in your values
+# Or create a repository variable named TERRAFORM_BACKEND with this content
+
+storage_account_name = "your-storage-account-name"
+container_name       = "tfstate"
+key                  = "terraform.tfstate"
+resource_group_name  = "your-backend-resource-group"
+subscription_id      = "your-azure-subscription-id"
+tenant_id            = "your-azure-tenant-id"
+use_oidc             = true

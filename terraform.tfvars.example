@@ -1,0 +1,6 @@
+# Example terraform.tfvars file
+# Copy this content and add it to your GitHub repository as a variable named TERRAFORM_TFVARS
+# Repository Settings > Secrets and variables > Actions > Variables tab > New repository variable
+
+# Azure Configuration
+location               = "westus"
