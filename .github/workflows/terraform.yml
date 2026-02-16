@@ -102,6 +102,12 @@ jobs:
         run: |
           printf '%s\n' "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
 
+      - name: Debug backend.hcl content
+        run: |
+          echo "=== backend.hcl content ==="
+          cat backend.hcl
+          echo "=== end of file ==="
+
       - name: Create terraform.tfvars from variable
         run: |
           printf '%s\n' "${{ vars.TERRAFORM_TFVARS }}" > terraform.tfvars
