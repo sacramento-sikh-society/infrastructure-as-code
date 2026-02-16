@@ -100,7 +100,9 @@ jobs:
 
       - name: Create backend.hcl from variable
         run: |
-          printf '%s\n' "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
+          cat > backend.hcl << 'EOF'
+          ${{ vars.TERRAFORM_BACKEND }}
+          EOF
 
       - name: Debug backend.hcl content
         run: |
@@ -110,7 +112,9 @@ jobs:
 
       - name: Create terraform.tfvars from variable
         run: |
-          printf '%s\n' "${{ vars.TERRAFORM_TFVARS }}" > terraform.tfvars
+          cat > terraform.tfvars << 'EOF'
+          ${{ vars.TERRAFORM_TFVARS }}
+          EOF
 
       - name: Terraform Init
         run: terraform init -backend-config=backend.hcl
@@ -227,7 +231,9 @@ jobs:
       - name: Create backend.hcl from variable (if no artifact)
         if: steps.check-plan.outputs.plan_exists == 'false'
         run: |
-          printf '%s\n' "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
+          cat > backend.hcl << 'EOF'
+          ${{ vars.TERRAFORM_BACKEND }}
+          EOF
 
       - name: Terraform Init
         run: terraform init -backend-config=backend.hcl
@@ -235,8 +241,12 @@ jobs:
       - name: Create backend.hcl and terraform.tfvars from variables (if no artifact)
         if: steps.check-plan.outputs.plan_exists == 'false'
         run: |
-          printf '%s\n' "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
-          printf '%s\n' "${{ vars.TERRAFORM_TFVARS }}" > terraform.tfvars
+          cat > backend.hcl << 'EOF'
+          ${{ vars.TERRAFORM_BACKEND }}
+          EOF
+          cat > terraform.tfvars << 'EOF'
+          ${{ vars.TERRAFORM_TFVARS }}
+          EOF
 
       - name: Terraform Plan (if no artifact)
         if: steps.check-plan.outputs.plan_exists == 'false'
