@@ -99,10 +99,14 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Create backend.hcl from variable
-        run: echo "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
+        run: |
+          echo "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
+          echo >> backend.hcl
 
       - name: Create terraform.tfvars from variable
-        run: echo "${{ vars.TERRAFORM_TFVARS }}" > terraform.tfvars
+        run: |
+          echo "${{ vars.TERRAFORM_TFVARS }}" > terraform.tfvars
+          echo >> terraform.tfvars
 
       - name: Terraform Init
         run: terraform init -backend-config=backend.hcl
@@ -218,7 +222,9 @@ jobs:
 
       - name: Create backend.hcl from variable (if no artifact)
         if: steps.check-plan.outputs.plan_exists == 'false'
-        run: echo "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
+        run: |
+          echo "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
+          echo >> backend.hcl
 
       - name: Terraform Init
         run: terraform init -backend-config=backend.hcl
@@ -227,7 +233,9 @@ jobs:
         if: steps.check-plan.outputs.plan_exists == 'false'
         run: |
           echo "${{ vars.TERRAFORM_BACKEND }}" > backend.hcl
+          echo >> backend.hcl
           echo "${{ vars.TERRAFORM_TFVARS }}" > terraform.tfvars
+          echo >> terraform.tfvars
 
       - name: Terraform Plan (if no artifact)
         if: steps.check-plan.outputs.plan_exists == 'false'
