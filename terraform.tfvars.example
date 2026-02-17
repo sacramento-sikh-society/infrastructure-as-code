@@ -3,4 +3,7 @@
 # Repository Settings > Secrets and variables > Actions > Variables tab > New repository variable
 
 # Azure Configuration
-location               = "westus"
+subscription_id = "your-azure-subscription-id"
+tenant_id       = "your-azure-tenant-id"
+client_id       = "your-azure-client-id"
+location        = "westus"

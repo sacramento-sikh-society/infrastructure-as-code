@@ -7,3 +7,8 @@ variable "tenant_id" {
   description = "Azure Tenant ID"
   type        = string
 }
+
+variable "client_id" {
+  description = "Azure Client ID for OIDC authentication"
+  type        = string
+}
