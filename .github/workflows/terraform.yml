@@ -116,6 +116,12 @@ jobs:
           ${{ vars.TERRAFORM_TFVARS }}
           EOF
 
+      - name: Debug terraform.tfvars content
+        run: |
+          echo "=== terraform.tfvars content ==="
+          cat terraform.tfvars
+          echo "=== end of file ==="
+
       - name: Terraform Init
         run: terraform init -backend-config=backend.hcl
 
