@@ -16,7 +16,6 @@ permissions:
 
 env:
   TF_VERSION: '1.13.5'
-  WORKING_DIRECTORY: '.'
 
 jobs:
   terraform-security-and-format:
@@ -52,7 +51,7 @@ jobs:
       - name: Run Checkov Security Scan
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: ${{ env.WORKING_DIRECTORY }}
+          directory: .
           framework: terraform
           output_format: cli
           soft_fail: true
@@ -62,7 +61,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
-          scan-ref: ${{ env.WORKING_DIRECTORY }}
+          scan-ref: .
           format: 'sarif'
           output: 'trivy-results.sarif'
 
@@ -84,6 +83,14 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
+      - name: Cache Terraform Providers
+        uses: actions/cache@v4
+        with:
+          path: .terraform
+          key: ${{ runner.os }}-terraform-${{ hashFiles('.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
@@ -91,16 +98,32 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Terraform Init
+      - name: Create backend.hcl from variable
         run: |
-          terraform init \
-            -backend-config="storage_account_name=${{ vars.BACKEND_STORAGE_ACCOUNT_NAME }}" \
-            -backend-config="container_name=${{ vars.BACKEND_CONTAINER_NAME }}" \
-            -backend-config="key=${{ vars.BACKEND_KEY }}" \
-            -backend-config="resource_group_name=${{ vars.BACKEND_RESOURCE_GROUP_NAME }}" \
-            -backend-config="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
-            -backend-config="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
-            -backend-config="use_oidc=true"
+          cat > backend.hcl << 'EOF'
+          ${{ vars.TERRAFORM_BACKEND }}
+          EOF
+
+      - name: Debug backend.hcl content
+        run: |
+          echo "=== backend.hcl content ==="
+          cat backend.hcl
+          echo "=== end of file ==="
+
+      - name: Create terraform.tfvars from variable
+        run: |
+          cat > terraform.tfvars << 'EOF'
+          ${{ vars.TERRAFORM_TFVARS }}
+          EOF
+
+      - name: Debug terraform.tfvars content
+        run: |
+          echo "=== terraform.tfvars content ==="
+          cat terraform.tfvars
+          echo "=== end of file ==="
+
+      - name: Terraform Init
+        run: terraform init -backend-config=backend.hcl
 
       - name: Terraform Validate
         run: terraform validate
@@ -110,12 +133,6 @@ jobs:
         run: |
           set +e
           terraform plan \
-            -var="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
-            -var="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
-            -var="location=${{ vars.LOCATION }}" \
-            -var="admin_username=${{ vars.VM_ADMIN_USERNAME }}" \
-            -var='admin_authorized_keys=${{ vars.VM_ADMIN_AUTHORIZED_KEYS }}' \
-            -var='allowed_ssh_cidrs=${{ vars.ALLOWED_SSH_CIDRS }}' \
             -detailed-exitcode \
             -out=tfplan
           echo "exitcode=$?" >> $GITHUB_OUTPUT
@@ -125,11 +142,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ github.event.pull_request.head.sha || github.sha }}
-          path: tfplan
+          path: |
+            tfplan
+            terraform.tfvars
+            backend.hcl
           retention-days: 5
 
       - name: Create Plan Summary
-        if: always()
+        if: steps.plan.outputs.exitcode == 0 || steps.plan.outputs.exitcode == 2
         run: |
           terraform show -no-color tfplan > plan_output.txt
           echo "## Terraform Plan Output" >> $GITHUB_STEP_SUMMARY
@@ -138,7 +158,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Comment Plan on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && (steps.plan.outputs.exitcode == '0' || steps.plan.outputs.exitcode == '2')
         uses: actions/github-script@v7
         with:
           script: |
@@ -172,31 +192,18 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Azure Login via OIDC
-        uses: azure/login@v2
+      - name: Cache Terraform Providers
+        uses: actions/cache@v4
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Terraform Init
-        run: |
-          terraform init \
-            -backend-config="storage_account_name=${{ vars.BACKEND_STORAGE_ACCOUNT_NAME }}" \
-            -backend-config="container_name=${{ vars.BACKEND_CONTAINER_NAME }}" \
-            -backend-config="key=${{ vars.BACKEND_KEY }}" \
-            -backend-config="resource_group_name=${{ vars.BACKEND_RESOURCE_GROUP_NAME }}" \
-            -backend-config="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
-            -backend-config="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
-            -backend-config="use_oidc=true"
+          path: .terraform
+          key: ${{ runner.os }}-terraform-${{ hashFiles('.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
 
       - name: Download Plan Artifact
         uses: actions/download-artifact@v4
@@ -216,17 +223,40 @@ jobs:
             echo "⚠️ No plan artifact found, will create new plan" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Terraform Plan (if no artifact)
+      - name: Checkout (only if no plan artifact)
+        if: steps.check-plan.outputs.plan_exists == 'false'
+        uses: actions/checkout@v4
+
+      - name: Azure Login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create backend.hcl from variable (if no artifact)
         if: steps.check-plan.outputs.plan_exists == 'false'
         run: |
-          terraform plan \
-            -var="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
-            -var="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
-            -var="location=${{ vars.LOCATION }}" \
-            -var="admin_username=${{ vars.VM_ADMIN_USERNAME }}" \
-            -var='admin_authorized_keys=${{ vars.VM_ADMIN_AUTHORIZED_KEYS }}' \
-            -var='allowed_ssh_cidrs=${{ vars.ALLOWED_SSH_CIDRS }}' \
-            -out=tfplan
+          cat > backend.hcl << 'EOF'
+          ${{ vars.TERRAFORM_BACKEND }}
+          EOF
+
+      - name: Terraform Init
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Create backend.hcl and terraform.tfvars from variables (if no artifact)
+        if: steps.check-plan.outputs.plan_exists == 'false'
+        run: |
+          cat > backend.hcl << 'EOF'
+          ${{ vars.TERRAFORM_BACKEND }}
+          EOF
+          cat > terraform.tfvars << 'EOF'
+          ${{ vars.TERRAFORM_TFVARS }}
+          EOF
+
+      - name: Terraform Plan (if no artifact)
+        if: steps.check-plan.outputs.plan_exists == 'false'
+        run: terraform plan -out=tfplan
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
