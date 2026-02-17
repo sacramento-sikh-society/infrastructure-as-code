@@ -5,5 +5,4 @@
 # Azure Configuration
 subscription_id = "your-azure-subscription-id"
 tenant_id       = "your-azure-tenant-id"
-client_id       = "your-azure-client-id"
 location        = "westus"
