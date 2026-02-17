@@ -1,6 +1,2 @@
-# Example terraform.tfvars file
-# Copy this content and add it to your GitHub repository as a variable named TERRAFORM_TFVARS
-# Repository Settings > Secrets and variables > Actions > Variables tab > New repository variable
-
-# Currently no root-level variables defined
-# Add your terraform input variables here as you define them in variables.tf
+# No terraform.tfvars needed - all values are hardcoded in az-aks.tf
+# To customize values, edit az-aks.tf directly

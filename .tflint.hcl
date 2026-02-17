@@ -32,3 +32,11 @@ rule "terraform_deprecated_index" {
 rule "azurerm_linux_virtual_machine_invalid_size" {
   enabled = false
 }
+
+rule "azurerm_kubernetes_cluster_default_node_pool_invalid_vm_size" {
+  enabled = false
+}
+
+rule "azurerm_kubernetes_cluster_node_pool_invalid_vm_size" {
+  enabled = false
+}
