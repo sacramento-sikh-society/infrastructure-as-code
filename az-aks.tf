@@ -43,7 +43,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     name            = "system"
     vm_size         = "Standard_D2ads_v6" # AMD EPYC Genoa, 2 vCPU, 8GB RAM (~$83/month)
     vnet_subnet_id  = azurerm_subnet.aks_nodes.id
-    os_disk_size_gb = 110 # Max ephemeral disk size for D2ads_v6 temp storage (no extra cost)
+    os_disk_size_gb = 110         # Max ephemeral disk size for D2ads_v6 temp storage (no extra cost)
     os_disk_type    = "Ephemeral" # Cost-effective, uses local SSD
 
     # Autoscaling configuration
