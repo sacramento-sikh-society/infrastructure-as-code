@@ -35,7 +35,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   location            = azurerm_resource_group.aks.location
   resource_group_name = azurerm_resource_group.aks.name
   dns_prefix          = "sacsikhsociety"
-  kubernetes_version  = "1.33"
+  kubernetes_version  = "1.34"
   sku_tier            = "Free"
 
   # System Node Pool
