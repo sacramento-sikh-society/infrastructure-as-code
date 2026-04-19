@@ -63,3 +63,23 @@ Configure the following repository variables in GitHub (Settings > Secrets and v
    admin_authorized_keys = "ssh-rsa AAAAB3Nza... your-public-key"
    allowed_ssh_cidrs     = "[\"0.0.0.0/0\"]"
    ```
+
+### Branch Protection Rules
+
+To enforce that PRs cannot be merged without a successful Terraform plan:
+
+1. Go to **Settings > Branches** in your GitHub repository
+2. Add a branch protection rule for `main`
+3. Enable the following settings:
+   - ✅ **Require a pull request before merging**
+   - ✅ **Require status checks to pass before merging**
+     - Search for and add: **Terraform Plan**
+     - Search for and add: **Security Scan & Format Check**
+   - ✅ **Require branches to be up to date before merging** (recommended)
+   - ✅ **Do not allow bypassing the above settings** (recommended)
+
+This ensures:
+- All infrastructure changes go through a PR workflow
+- Terraform plan must succeed before merging
+- Code is only deployed to production after validation
+- Apply stage uses the validated plan from the PR

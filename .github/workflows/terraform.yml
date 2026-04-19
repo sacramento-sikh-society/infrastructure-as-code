@@ -14,6 +14,11 @@ permissions:
   pull-requests: write
   issues: write
 
+# Prevent concurrent runs on the same branch/PR to avoid race conditions
+concurrency:
+  group: terraform-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
 env:
   TF_VERSION: '1.13.5'
 
@@ -139,9 +144,10 @@ jobs:
         continue-on-error: true
 
       - name: Upload Plan Artifact
+        if: steps.plan.outputs.exitcode == 0 || steps.plan.outputs.exitcode == 2
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ github.event.pull_request.head.sha || github.sha }}
+          name: tfplan-${{ github.sha }}
           path: |
             tfplan
             terraform.tfvars
@@ -158,22 +164,36 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Comment Plan on PR
-        if: github.event_name == 'pull_request' && (steps.plan.outputs.exitcode == '0' || steps.plan.outputs.exitcode == '2')
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync('plan_output.txt', 'utf8');
-            const output = `#### Terraform Plan 📖
-            <details><summary>Show Plan</summary>
+            const exitCode = '${{ steps.plan.outputs.exitcode }}';
+            let output = '';
             
-            \`\`\`terraform
-            ${plan}
-            \`\`\`
-            
-            </details>
-            
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            if (exitCode === '0' || exitCode === '2') {
+              const fs = require('fs');
+              const plan = fs.readFileSync('plan_output.txt', 'utf8');
+              const status = exitCode === '0' ? '✅ No Changes' : '📝 Changes Detected';
+              output = `#### Terraform Plan ${status}
+              <details><summary>Show Plan</summary>
+              
+              \`\`\`terraform
+              ${plan}
+              \`\`\`
+              
+              </details>
+              
+              *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            } else {
+              output = `#### Terraform Plan ❌ Failed
+              
+              The terraform plan failed. Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+              
+              **This PR cannot be merged until the plan succeeds.**
+              
+              *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            }
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -182,33 +202,50 @@ jobs:
               body: output
             });
 
-      - name: Check Plan Status
-        if: steps.plan.outputs.exitcode == 1
-        run: exit 1
+      - name: Enforce Plan Success
+        if: always()
+        run: |
+          exitcode="${{ steps.plan.outputs.exitcode }}"
+          if [ "$exitcode" == "0" ]; then
+            echo "✅ Plan succeeded - No changes detected" >> $GITHUB_STEP_SUMMARY
+            echo "::notice::Terraform plan successful with no changes"
+            exit 0
+          elif [ "$exitcode" == "2" ]; then
+            echo "✅ Plan succeeded - Changes detected" >> $GITHUB_STEP_SUMMARY
+            echo "::notice::Terraform plan successful with changes"
+            exit 0
+          else
+            echo "❌ Plan failed - PR cannot be merged" >> $GITHUB_STEP_SUMMARY
+            echo "::error::Terraform plan failed. Fix the errors before merging this PR."
+            exit 1
+          fi
 
   terraform-apply:
     name: 'Terraform Apply'
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Cache Terraform Providers
-        uses: actions/cache@v4
-        with:
-          path: .terraform
-          key: ${{ runner.os }}-terraform-${{ hashFiles('.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-terraform-
+    environment:
+      name: prCheckout
+        uses: actions/checkout@v4
 
       - name: Download Plan Artifact
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ github.sha }}
+        continue-on-error: true
+        id: download-plan
+
+      - name: Check if Plan Exists
+        id: check-plan
+        run: |
+          if [ -f tfplan ]; then
+            echo "plan_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Using existing plan from PR merge" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "plan_exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No plan artifact found - this shouldn't happen after PR merge" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Will create a new plan, but this indicates the PR was not properly validated" >> $GITHUB_STEP_SUMMARY
+          fi.sha }}
         continue-on-error: true
         id: download-plan
 
@@ -234,17 +271,7 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Create backend.hcl from variable (if no artifact)
-        if: steps.check-plan.outputs.plan_exists == 'false'
-        run: |
-          cat > backend.hcl << 'EOF'
-          ${{ vars.TERRAFORM_BACKEND }}
-          EOF
-
-      - name: Terraform Init
-        run: terraform init -backend-config=backend.hcl
-
-      - name: Create backend.hcl and terraform.tfvars from variables (if no artifact)
+      - name: Create backend config (if no artifact)
         if: steps.check-plan.outputs.plan_exists == 'false'
         run: |
           cat > backend.hcl << 'EOF'
@@ -254,9 +281,14 @@ jobs:
           ${{ vars.TERRAFORM_TFVARS }}
           EOF
 
-      - name: Terraform Plan (if no artifact)
+      - name: Terraform Init
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Terraform Plan (if no artifact - FALLBACK ONLY)
         if: steps.check-plan.outputs.plan_exists == 'false'
-        run: terraform plan -out=tfplan
+        run: |
+          echo "⚠️ Creating emergency plan - PR plan was not found" >> $GITHUB_STEP_SUMMARY
+          terraform plan -out=tfplan
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
