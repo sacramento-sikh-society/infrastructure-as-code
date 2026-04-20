@@ -226,26 +226,12 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: prCheckout
-        uses: actions/checkout@v4
 
+    steps:
       - name: Download Plan Artifact
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ github.sha }}
-        continue-on-error: true
-        id: download-plan
-
-      - name: Check if Plan Exists
-        id: check-plan
-        run: |
-          if [ -f tfplan ]; then
-            echo "plan_exists=true" >> $GITHUB_OUTPUT
-            echo "✅ Using existing plan from PR merge" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "plan_exists=false" >> $GITHUB_OUTPUT
-            echo "⚠️ No plan artifact found - this shouldn't happen after PR merge" >> $GITHUB_STEP_SUMMARY
-            echo "⚠️ Will create a new plan, but this indicates the PR was not properly validated" >> $GITHUB_STEP_SUMMARY
-          fi.sha }}
         continue-on-error: true
         id: download-plan
 
