@@ -224,8 +224,6 @@ jobs:
     name: 'Terraform Apply'
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment:
-      name: prCheckout
 
     steps:
       - name: Download Plan Artifact
