@@ -4,6 +4,9 @@ resource "azurerm_resource_group" "aks" {
   location = "westus3"
 }
 
+# Current Azure AD tenant / client context (used for managed AAD integration)
+data "azurerm_client_config" "current" {}
+
 # Virtual Network for AKS (required for Azure CNI Overlay)
 resource "azurerm_virtual_network" "aks" {
   name                = "vnet-sss-aks"
@@ -68,11 +71,23 @@ resource "azurerm_kubernetes_cluster" "aks" {
     type = "SystemAssigned"
   }
 
-  # Network Profile - Azure CNI Overlay
+  # Managed Azure AD integration with Azure RBAC. This lets us grant Kubernetes
+  # cluster-admin to the GitHub Actions user-assigned identity (see
+  # az-aks-identity.tf) purely through Azure role assignments — no static
+  # kubeconfig admin credentials are handed out.
+  azure_active_directory_role_based_access_control {
+    azure_rbac_enabled = true
+    tenant_id          = data.azurerm_client_config.current.tenant_id
+  }
+
+  # Network Profile - Azure CNI Overlay powered by Cilium.
+  # Cilium provides the eBPF dataplane and network policy engine, and underpins
+  # Gateway API based ingress (Traefik Gateway API is deployed via cfg-k8s-az).
   network_profile {
     network_plugin      = "azure"
     network_plugin_mode = "overlay"
-    network_policy      = "azure"
+    network_data_plane  = "cilium"
+    network_policy      = "cilium"
 
     # CNI Overlay requires pod_cidr
     pod_cidr       = "10.244.0.0/16"
