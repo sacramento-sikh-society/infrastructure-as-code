@@ -2,7 +2,7 @@
 # AKS cluster (deploy Traefik, cert-manager, workloads, etc.). GitHub Actions
 # federates into this identity — no client secrets are stored anywhere.
 resource "azurerm_user_assigned_identity" "aks_admin" {
-  name                = "id-sss-aks-admin"
+  name                = "uami-sss-aks-admin"
   location            = azurerm_resource_group.aks.location
   resource_group_name = azurerm_resource_group.aks.name
 }
