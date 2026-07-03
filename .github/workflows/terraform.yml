@@ -14,9 +14,14 @@ permissions:
   pull-requests: write
   issues: write
 
-# Prevent concurrent runs on the same branch/PR to avoid race conditions
+# Serialize ALL runs that touch the remote Terraform state (plan on PRs and
+# apply on push to main) into a single queue. This guarantees a PR plan (which
+# holds a state lock during refresh) can never overlap the post-merge apply,
+# which previously caused apply to fail with a locked state file.
+# cancel-in-progress: false means apply waits (queues) for an in-flight plan
+# instead of being cancelled.
 concurrency:
-  group: terraform-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: terraform-state-${{ github.workflow }}
   cancel-in-progress: false
 
 env:
